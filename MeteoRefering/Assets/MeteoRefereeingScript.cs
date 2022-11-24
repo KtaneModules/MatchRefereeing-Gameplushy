@@ -20,8 +20,8 @@ public class MeteoRefereeingScript : ModuleScript {
 	private int levelIndex = 0;
 	private int[] levelOrder;
 
-	private bool sonarInputPossible = true;
-	private bool planetInputPossible = true;
+	private bool isSonarPressable = true;
+	private bool isAnythingPressable = true;
 
 	public Texture[] spaceCraftAnimSprites;
 	public Texture[] BGs;
@@ -69,9 +69,9 @@ public class MeteoRefereeingScript : ModuleScript {
 	void Start () {
 		
 		planetList = (PlanetNames[])Enum.GetValues(typeof(PlanetNames)).Shuffle();
-		planets.Select(p=>p.selectable).Assign(onInteract: Annihilate);
+		planets.Select(p=>p.selectable).Assign(onInteract: (i)=> { if (isAnythingPressable) Annihilate(i); });
 		stagesPlanets.ForEach(sp => sp.SetActive(false));
-		ark.Assign(onInteract:()=>{ if(sonarInputPossible) StartCoroutine(Sonar()); });
+		ark.Assign(onInteract:()=>{ if(isSonarPressable) StartCoroutine(Sonar()); });
 		planetsUsed = new PlanetNames[3][];
 		int planetIndex=0;
 		for(int i = 0; i < 3; i++)
@@ -88,48 +88,51 @@ public class MeteoRefereeingScript : ModuleScript {
 
     private IEnumerator Sonar()
     {
-		PlanetNames[] usedPlanets;// = planetsUsed[stage];
-        if (RNG.Range(0, 4) == 3)
+		if (!IsSolved && isAnythingPressable)
         {
-			Log("Sonar is faulty, you're going to hear a different match !");
-			do
-				usedPlanets = planetList.Shuffle().Take(planetsUsed.Length).ToArray();
-			while (usedPlanets.All(p => planetsUsed[stage].Contains(p)));
-        }
-        else
-        {
-			Log("Playing actual match...");
-			usedPlanets = planetsUsed[stage];
-        }
-		float[] tmp = usedPlanets.Select(pu => { float[] res; sfxTime.TryGetValue(pu, out res); return res[pu == usedPlanets[levelOrder.Last()] ? 1 : 0]; }).ToArray();
-		Log(tmp);
-		float[] timeTable = new float[stage + 2];
-		for(int i=0;i<timeTable.Length;i++) timeTable[i] = tmp[levelOrder[i]];
-		Log(timeTable);
-		float[] delays = new float[stage];
-		for (int i = 0; i < delays.Length; i++) delays[i] = RNG.Range(2f, 5f);
-		Log(delays);
-		for(int i=0;i<timeTable.Length;i++)
-        {
-			if (i == 0) continue;
-			timeTable[i] += delays.Take(Math.Min(i - 1,delays.Length-1)).Sum();
-        }
-		Log(timeTable);
-		StartCoroutine(BlockSonar(timeTable.Max()));
-        for(int i = 0; i < stage + 2; i++)
-        {
-			if (i != stage + 1 && i!=0) yield return new WaitForSecondsRealtime(delays[i-1]);
-			Log(usedPlanets[levelOrder[i]].ToString());
-			PlaySound(usedPlanets[levelOrder[i]].ToString()+(i == stage+1?"V":"A"));
-			
-        }
+			PlanetNames[] usedPlanets;// = planetsUsed[stage];
+			if (RNG.Range(0, 4) == 3)
+			{
+				Log("Sonar is faulty, you're going to hear a different match !");
+				do
+					usedPlanets = planetList.Shuffle().Take(planetsUsed.Length).ToArray();
+				while (usedPlanets.All(p => planetsUsed[stage].Contains(p)));
+			}
+			else
+			{
+				Log("Playing actual match...");
+				usedPlanets = planetsUsed[stage];
+			}
+			float[] tmp = usedPlanets.Select(pu => { float[] res; sfxTime.TryGetValue(pu, out res); return res[pu == usedPlanets[levelOrder.Last()] ? 1 : 0]; }).ToArray();
+			Log(tmp);
+			float[] timeTable = new float[stage + 2];
+			for (int i = 0; i < timeTable.Length; i++) timeTable[i] = tmp[levelOrder[i]];
+			Log(timeTable);
+			float[] delays = new float[stage];
+			for (int i = 0; i < delays.Length; i++) delays[i] = RNG.Range(2f, 5f);
+			Log(delays);
+			for (int i = 0; i < timeTable.Length; i++)
+			{
+				if (i == 0) continue;
+				timeTable[i] += delays.Take(Math.Min(i - 1, delays.Length - 1)).Sum();
+			}
+			Log(timeTable);
+			StartCoroutine(BlockSonar(timeTable.Max()));
+			for (int i = 0; i < stage + 2; i++)
+			{
+				if (i != stage + 1 && i != 0) yield return new WaitForSecondsRealtime(delays[i - 1]);
+				Log(usedPlanets[levelOrder[i]].ToString());
+				PlaySound(usedPlanets[levelOrder[i]].ToString() + (i == stage + 1 ? "V" : "A"));
+
+			}
+		}
     }
 
     private IEnumerator BlockSonar(float v)
     {
-		sonarInputPossible = false;
+		isSonarPressable = false;
 		yield return new WaitForSecondsRealtime(v);
-		sonarInputPossible = true;
+		isSonarPressable = true;
     }
 
     private void StartStage()
@@ -140,31 +143,35 @@ public class MeteoRefereeingScript : ModuleScript {
 		for (int i = starts[stage]; i < starts[stage]+stage+2; i++) planets[i].animator.SetFloat("offset", offsets[i-starts[stage]]);
 		Log("Stage {0} : Opponents are {1}.", stage + 1, planetsUsed[stage].Join(","));
 		levelOrder = Enumerable.Range(0, stage + 2).ToArray().Shuffle();
-		Log(levelOrder);
 		Log("Order from last to first is : {0}.", levelOrder.Select(x => planetsUsed[stage][x]));
 	}
 
     private void Annihilate(int obj)
     {
-		Log(levelOrder[levelIndex]);
-		if (obj-GetPlanetArrayOffset() == levelOrder[levelIndex])
+		if (levelOrder.Take(levelIndex).Contains(obj - GetPlanetArrayOffset())) return; //Ignore click if already pressed
+		if (obj - GetPlanetArrayOffset() == levelOrder[levelIndex])
 		{
+			Log(planetsUsed[stage][obj - GetPlanetArrayOffset()]+" pressed correctly.");
 			PlaySound("annihilate");
 			planets[obj].animator.enabled = false;
 			planets[obj].material.SetFloat("_GrayscaleAmount", 1);
-            if (++levelIndex == stage + 1)
-            {
+			if (++levelIndex == stage + 1)
+			{
 				levelIndex = 0;
 				if (++stage == 3) Solve();
 				else StartCoroutine(NextStage());
-            }
+			}
 		}
-		else Strike();
+		else
+		{
+			Log("{0} pressed when it should have been {1}. Strike.", planetsUsed[stage][obj - GetPlanetArrayOffset()],planetsUsed[stage][levelOrder[levelIndex]]);
+			Strike();
+		}
     }
 
     private IEnumerator NextStage()
     {
-		planetInputPossible = false;
+		isAnythingPressable = false;
 		yield return new WaitForSeconds(2f);
 		arkGO.SetActive(false);
 		stagesPlanets.ForEach(sp => sp.SetActive(false));
@@ -177,7 +184,7 @@ public class MeteoRefereeingScript : ModuleScript {
 		bgMat.material.mainTexture = BGs[stage];
 		StartStage();
 		arkGO.SetActive(true);
-		planetInputPossible = true;
+		isAnythingPressable = true;
 	}
 #pragma warning disable 414
 	private readonly string TwitchHelpMessage = @"[!{0} sonar] activates your sonar (it'll wait until you'll be able to activate it). [!{0} annihilate #] annihilates the #th planet, counting from the top. You can annihilate multiple planets in the same command.";
@@ -188,7 +195,7 @@ public class MeteoRefereeingScript : ModuleScript {
         if (commands[0].Equals("sonar", StringComparison.InvariantCultureIgnoreCase))
         {
 			yield return null;
-			yield return new WaitUntil(() => sonarInputPossible);
+			yield return new WaitUntil(() => isSonarPressable);
 			ark.OnInteract();
         }
 		else if (commands[0].Equals("annihilate", StringComparison.InvariantCultureIgnoreCase) && commands.Skip(1).All(n=>Enumerable.Range(1,stage+2).Select(i=>i.ToString()).Contains(n)) && commands.Length - 1 > 0 && commands.Length - 1 <= stage + 1 - levelIndex)
@@ -196,7 +203,7 @@ public class MeteoRefereeingScript : ModuleScript {
 			
 			yield return null;
 			foreach(int index in commands.Skip(1).Select(n => int.Parse(n)-1)){
-				yield return new WaitUntil(() => planetInputPossible);
+				yield return new WaitUntil(() => isAnythingPressable);
 				planets[index + GetPlanetArrayOffset()].selectable.OnInteract();
 				yield return new WaitForSecondsRealtime(.3f);
             }
@@ -206,7 +213,7 @@ public class MeteoRefereeingScript : ModuleScript {
     {
         while (!IsSolved)
         {
-			yield return new WaitUntil(() => planetInputPossible);
+			yield return new WaitUntil(() => isAnythingPressable);
 			planets[levelOrder[levelIndex] + GetPlanetArrayOffset()].selectable.OnInteract();
 			yield return new WaitForSecondsRealtime(.3f);
         }
