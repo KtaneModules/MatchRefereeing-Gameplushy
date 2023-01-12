@@ -95,7 +95,7 @@ public class MeteoRefereeingScript : ModuleScript {
 			{
 				Log("Sonar is faulty, you're going to hear a different match !");
 				do
-					usedPlanets = planetList.Shuffle().Take(planetsUsed.Length).ToArray();
+					usedPlanets = planetList.Shuffle().Take(planetsUsed[stage].Length).ToArray();
 				while (usedPlanets.All(p => planetsUsed[stage].Contains(p)));
 			}
 			else
