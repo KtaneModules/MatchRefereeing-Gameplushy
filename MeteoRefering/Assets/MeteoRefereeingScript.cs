@@ -67,7 +67,6 @@ public class MeteoRefereeingScript : ModuleScript {
 
 	// Use this for initialization
 	void Start () {
-		
 		planetList = (PlanetNames[])Enum.GetValues(typeof(PlanetNames)).Shuffle();
 		planets.Select(p=>p.selectable).Assign(onInteract: (i)=> { if (isAnythingPressable) Annihilate(i); });
 		stagesPlanets.ForEach(sp => sp.SetActive(false));
@@ -104,26 +103,20 @@ public class MeteoRefereeingScript : ModuleScript {
 				usedPlanets = planetsUsed[stage];
 			}
 			float[] tmp = usedPlanets.Select(pu => { float[] res; sfxTime.TryGetValue(pu, out res); return res[pu == usedPlanets[levelOrder.Last()] ? 1 : 0]; }).ToArray();
-			Log(tmp);
 			float[] timeTable = new float[stage + 2];
 			for (int i = 0; i < timeTable.Length; i++) timeTable[i] = tmp[levelOrder[i]];
-			Log(timeTable);
 			float[] delays = new float[stage];
 			for (int i = 0; i < delays.Length; i++) delays[i] = RNG.Range(2f, 5f);
-			Log(delays);
 			for (int i = 0; i < timeTable.Length; i++)
 			{
 				if (i == 0) continue;
 				timeTable[i] += delays.Take(Math.Min(i - 1, delays.Length - 1)).Sum();
 			}
-			Log(timeTable);
 			StartCoroutine(BlockSonar(timeTable.Max()));
 			for (int i = 0; i < stage + 2; i++)
 			{
 				if (i != stage + 1 && i != 0) yield return new WaitForSecondsRealtime(delays[i - 1]);
-				Log(usedPlanets[levelOrder[i]].ToString());
 				PlaySound(usedPlanets[levelOrder[i]].ToString() + (i == stage + 1 ? "V" : "A"));
-
 			}
 		}
     }
@@ -187,7 +180,7 @@ public class MeteoRefereeingScript : ModuleScript {
 		isAnythingPressable = true;
 	}
 #pragma warning disable 414
-	private readonly string TwitchHelpMessage = @"[!{0} sonar] activates your sonar (it'll wait until you'll be able to activate it). [!{0} annihilate #] annihilates the #th planet, counting from the top. You can annihilate multiple planets in the same command.";
+	private readonly string TwitchHelpMessage = @"[!{0} sonar] activates your sonar (it'll wait until you'll be able to activate it). [!{0} annihilate/destroy #] annihilates the #th planet, counting from the top. You can annihilate multiple planets in the same command.";
 #pragma warning restore 414
 	private IEnumerator ProcessTwitchCommand(string command)
     {
@@ -198,7 +191,7 @@ public class MeteoRefereeingScript : ModuleScript {
 			yield return new WaitUntil(() => isSonarPressable);
 			ark.OnInteract();
         }
-		else if (commands[0].Equals("annihilate", StringComparison.InvariantCultureIgnoreCase) && commands.Skip(1).All(n=>Enumerable.Range(1,stage+2).Select(i=>i.ToString()).Contains(n)) && commands.Length - 1 > 0 && commands.Length - 1 <= stage + 1 - levelIndex)
+		else if ((commands[0].Equals("annihilate", StringComparison.InvariantCultureIgnoreCase) || commands[0].Equals("destroy", StringComparison.InvariantCultureIgnoreCase)) && commands.Skip(1).All(n=>Enumerable.Range(1,stage+2).Select(i=>i.ToString()).Contains(n)) && commands.Length - 1 > 0 && commands.Length - 1 <= stage + 1 - levelIndex)
         {
 			
 			yield return null;
