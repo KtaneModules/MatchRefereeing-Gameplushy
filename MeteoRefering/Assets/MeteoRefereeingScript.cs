@@ -68,7 +68,7 @@ public class MeteoRefereeingScript : ModuleScript {
 	// Use this for initialization
 	void Start () {
 		planetList = (PlanetNames[])Enum.GetValues(typeof(PlanetNames)).Shuffle();
-		planets.Select(p=>p.selectable).Assign(onInteract: (i)=> { if (isAnythingPressable) Annihilate(i); });
+		planets.Select(p=>p.selectable).Assign(onInteract: (i)=> { if (isAnythingPressable && !IsSolved) Annihilate(i); });
 		stagesPlanets.ForEach(sp => sp.SetActive(false));
 		ark.Assign(onInteract:()=>{ if(isSonarPressable) StartCoroutine(Sonar()); });
 		planetsUsed = new PlanetNames[3][];
@@ -89,23 +89,24 @@ public class MeteoRefereeingScript : ModuleScript {
     {
 		if (!IsSolved && isAnythingPressable)
         {
-			PlanetNames[] usedPlanets;// = planetsUsed[stage];
+			int stageForSonar = stage; //temp variable so stage number doesn't change during sonar
+			PlanetNames[] usedPlanets;
 			if (RNG.Range(0, 4) == 3)
 			{
 				Log("Sonar is faulty, you're going to hear a different match !");
 				do
-					usedPlanets = planetList.Shuffle().Take(planetsUsed[stage].Length).ToArray();
-				while (usedPlanets.All(p => planetsUsed[stage].Contains(p)));
+					usedPlanets = planetList.Shuffle().Take(planetsUsed[stageForSonar].Length).ToArray();
+				while (usedPlanets.All(p => planetsUsed[stageForSonar].Contains(p)));
 			}
 			else
 			{
 				Log("Playing actual match...");
-				usedPlanets = planetsUsed[stage];
+				usedPlanets = planetsUsed[stageForSonar];
 			}
 			float[] tmp = usedPlanets.Select(pu => { float[] res; sfxTime.TryGetValue(pu, out res); return res[pu == usedPlanets[levelOrder.Last()] ? 1 : 0]; }).ToArray();
-			float[] timeTable = new float[stage + 2];
+			float[] timeTable = new float[stageForSonar + 2];
 			for (int i = 0; i < timeTable.Length; i++) timeTable[i] = tmp[levelOrder[i]];
-			float[] delays = new float[stage];
+			float[] delays = new float[stageForSonar];
 			for (int i = 0; i < delays.Length; i++) delays[i] = RNG.Range(2f, 5f);
 			for (int i = 0; i < timeTable.Length; i++)
 			{
@@ -113,10 +114,10 @@ public class MeteoRefereeingScript : ModuleScript {
 				timeTable[i] += delays.Take(Math.Min(i - 1, delays.Length - 1)).Sum();
 			}
 			StartCoroutine(BlockSonar(timeTable.Max()));
-			for (int i = 0; i < stage + 2; i++)
+			for (int i = 0; i < stageForSonar + 2; i++)
 			{
-				if (i != stage + 1 && i != 0) yield return new WaitForSecondsRealtime(delays[i - 1]);
-				PlaySound(usedPlanets[levelOrder[i]].ToString() + (i == stage + 1 ? "V" : "A"));
+				if (i != stageForSonar + 1 && i != 0) yield return new WaitForSecondsRealtime(delays[i - 1]);
+				PlaySound(usedPlanets[levelOrder[i]].ToString() + (i == stageForSonar + 1 ? "V" : "A"));
 			}
 		}
     }
